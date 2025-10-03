@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "examplemod",
+  "id": "caveuberhaul2",
   "version": "${version}",
 
-  "name": "Example Mod",
-  "description": "This mod aims to help new BTA modders.",
+  "name": "Cave Uberhaul 2",
+  "description": "Complete rewrite of Cave Uberhaul.",
   "authors": [
-    "Turnip Labs"
+    "Diarr"
   ],
   "contact": {
     "homepage": "",
@@ -19,20 +19,20 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-			"turniplabs.examplemod.ExampleMod"
+			"diarr.caveuberhaul2.CaveUberhaul"
     ],
 		"beforeGameStart": [
-			"turniplabs.examplemod.ExampleMod"
+			"diarr.caveuberhaul2.CaveUberhaul"
 		],
 		"afterGameStart": [
-			"turniplabs.examplemod.ExampleMod"
+			"diarr.caveuberhaul2.CaveUberhaul"
 		],
 		"recipesReady": [
-			"turniplabs.examplemod.ExampleMod"
+			"diarr.caveuberhaul2.CaveUberhaul"
 		]
 	},
   "mixins": [
-      "examplemod.mixins.json"
+    "caveuberhaul2.mixins.json"
   ],
 
   "depends": {

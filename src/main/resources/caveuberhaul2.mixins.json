@@ -1,9 +1,12 @@
 {
     "required": true,
     "minVersion": "0.8",
-    "package": "turniplabs.examplemod.mixin",
+    "package": "diarr.caveuberhaul2.mixin",
     "compatibilityLevel": "JAVA_8",
     "mixins": [
+      "WorldMixin",
+      "FogManagerMixin",
+      "ChunkGeneratorPerlinMixin"
     ],
     "client": [
     ],
