@@ -1,10 +1,13 @@
 package diarr.caveuberhaul2.gen;
 
 import diarr.caveuberhaul2.FastNoiseLite;
+import diarr.caveuberhaul2.UberUtil;
+import diarr.caveuberhaul2.gen.chunk.TempChunkData;
 import net.minecraft.core.block.Blocks;
 import net.minecraft.core.block.tag.BlockTags;
 import net.minecraft.core.util.helper.MathHelper;
 import net.minecraft.core.world.World;
+import net.minecraft.core.world.chunk.ChunkCoordinate;
 import net.minecraft.core.world.generate.LargeFeature;
 import net.minecraft.core.world.generate.chunk.ChunkGeneratorResult;
 
@@ -18,8 +21,8 @@ public class NoiseCaveGenerator extends LargeFeature
 	private int layer2MinYTunnels = layer2MinY-16;
 	private int layer3MinY = 0;
 	protected float wallThickness = .1f;
-	private float layer1BlobThreshold = .7f;
-	private float layer2BlobThreshold = .42f;
+	private float layer1BlobThreshold = .6f;
+	private float layer2BlobThreshold = .39f;
 	private float layer3BlobThreshold = .55f;
 	private float layer1WrigglyThreshold = .07f;
 	private float layer2WrigglyThreshold = .05f;
@@ -28,7 +31,7 @@ public class NoiseCaveGenerator extends LargeFeature
 	private float layer1BlobFreqXZ = 0.015f;
 	private float layer1BlobFreqY = 0.025f;
 	private float layer2BlobFreqXZ = 0.021f;
-	private float layer2BlobFreqY = 0.045f;
+	private float layer2BlobFreqY = 0.035f;
 	private float layer3BlobFreqXZ = 0.02f;
 	private float layer3BlobFreqY = 0.03f;
 
@@ -43,7 +46,8 @@ public class NoiseCaveGenerator extends LargeFeature
 	private static final FastNoiseLite wrigglyCaveNoise = new FastNoiseLite();
 
 	private static final FastNoiseLite caveClearNoise = new FastNoiseLite();
-	private static final FastNoiseLite pillarNoise = new FastNoiseLite();
+
+	byte[][][] decoratorValues;
 
 	public NoiseCaveGenerator() {
 
@@ -57,7 +61,7 @@ public class NoiseCaveGenerator extends LargeFeature
 		caveDistributionNoise.SetFrequency(0.01f,0.01f);
 
 		blobNoise.SetSeed(seed);
-		blobNoise.SetNoiseType(FastNoiseLite.NoiseType.Value);
+		blobNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
 		blobNoise.SetFrequency(layer1BlobFreqXZ,layer1BlobFreqY);
 		blobNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
 		blobNoise.SetFractalOctaves(2);
@@ -77,7 +81,7 @@ public class NoiseCaveGenerator extends LargeFeature
 		maxCaveHeight = getChunkHeight(world,result);
 		initializeNoise(world);
 
-		byte[][][] decoratorValues = new byte[16][world.getHeightBlocks()][16]; //0 = do Nothing; 1 = to be mined; 2 = marked for replacement by cave biome blocks
+		decoratorValues = TempChunkData.RetrieveData(world,new ChunkCoordinate(baseChunkX,baseChunkZ));//0 = do Nothing; 1 = to be mined; 2 = marked for replacement by cave biome blocks; 3 = ceiling Block
 
 		float[][][] NoiseMapCompound = sampleBlobNoiseCompound3D(baseChunkX,baseChunkZ,maxCaveHeight);
 
@@ -95,10 +99,9 @@ public class NoiseCaveGenerator extends LargeFeature
 		float[][][] NoiseMapBigTunnelCompound = sampleTunnelNoiseCompound3D(wrigglyCaveNoise,baseChunkX,baseChunkZ,maxCaveHeight,0,0,0,wrigglyBigFreqXZ,wrigglyBigFreqY);
 		float[][][] NoiseMapBigTunnelCompoundOffset = sampleTunnelNoiseCompound3D(wrigglyCaveNoise,baseChunkX,baseChunkZ,maxCaveHeight,256,64,256,wrigglyBigFreqXZ,wrigglyBigFreqY);
 
-		//float[][][] NoiseMapRavineCompound = sampleTunnelNoiseCompound3D(ravineCaveNoise,baseChunkX,baseChunkZ, maxCaveHeight, 128,0,128,ravineFreqXZ,ravineFreqY);
-		//float[][] RavineActivatorNoise = sampleNoise2D(ravinePlacementNoise,baseChunkX,baseChunkZ,512,256);
+		float[][] caveClearNoise = UberUtil.sampleNoise2D(caveDistributionNoise,baseChunkX,baseChunkZ,256,128);
 
-		float[][] caveClearNoise = sampleNoise2D(caveDistributionNoise,baseChunkX,baseChunkZ,256,128);
+		float[][][] combinedNoiseMap = new float[16][maxCaveHeight+1][16];
 
 		float blobThres = layer1BlobThreshold;
 		float wrigglyThres = layer1WrigglyThreshold;
@@ -168,42 +171,77 @@ public class NoiseCaveGenerator extends LargeFeature
 					boolean generateBigTunnels = noiseTunnelBigValue<bigWrigglyThres&&noiseTunnelBigValueOffset<bigWrigglyThres;
 					boolean generateBigTunnelsWalls = noiseTunnelBigValue<bigWrigglyThres+wallThickness&&noiseTunnelBigValueOffset<bigWrigglyThres+wallThickness;
 
-					if(generateBlobsWall||generateTunnelsWalls||generateBigTunnelsWalls)
+
+					int blockId = result.getBlock(x,y,z);
+
+					if (generateBlobs||generateBigTunnels)
+					{
+						//Normalize all Cave Values to 0-1 range;
+						float normalizedBlobValue = UberUtil.normalizeValue(noiseBlobValue,1,blobThres);
+						float normalizedBigTunnelValue = UberUtil.normalizeValue((1 - Math.max(noiseTunnelBigValue, noiseTunnelBigValueOffset)),1,1-bigWrigglyThres);
+						combinedNoiseMap[x][y][z] = Math.max(normalizedBlobValue,normalizedBigTunnelValue);
+					}
+
+					if((generateBlobsWall||generateTunnelsWalls||generateBigTunnelsWalls)&&!(generateBlobs||generateTunnels||generateBigTunnels))
 					{
 						decoratorValues[x][y][z] = 2;
 					}
 
-					if(generateBigTunnels)//if (generateBlobs||generateTunnels||generateBigTunnels)
+					if ((generateBlobs||generateTunnels||generateBigTunnels))
 					{
 						decoratorValues[x][y][z] = 1;
+						digBlocks(world,decoratorValues,maxCaveHeight,x,y,z,blockId,result);
 					}
 
+					if(decoratorValues[x][y][z] == 1&&y<254&&y>5&&decoratorValues[x][y+1][z] == 2)
+					{
+						decoratorValues[x][y+1][z] = 3;
+						//result.setBlock(x, y, z, 820);
+					}
 				}
 			}
 		}
-		digBlocks(decoratorValues,maxCaveHeight,result);
 	}
 
-	protected void digBlocks(byte[][][] decoratorValues,int maxHeight,ChunkGeneratorResult result)
+	protected void digBlocks(World world,byte[][][] decoratorValues,int maxHeight,int x,int y,int z,int blockId,ChunkGeneratorResult result)
 	{
-		for(int x = 0;x<16;x++)
-		{
-			for(int z = 0;z<16;z++)
-			{
-				for (int y = maxHeight; y > 0; y--) {
-					int blockId = result.getBlock(x,y,z);
-					if(decoratorValues[x][y][z] == 1&& Blocks.hasTag(blockId, BlockTags.CAVES_CUT_THROUGH)) {
-						//TODO: Check for oceans and what blocks can be replaced by caves
-						if (y < 10) {
-							result.setBlock(x, y, z, 273);
+		boolean hasHitOcean = false;
+		if (world.getWorldType().getOceanBlockId() != 0) {
+			hasHitOcean = false;
+		}
+			if(decoratorValues[x][y][z] == 1 && Blocks.hasTag(blockId, BlockTags.CAVES_CUT_THROUGH)) {
+				//TODO: Check for oceans and what blocks can be replaced by caves
+				if (y < 10) {
+					result.setBlock(x, y, z, 273);
+				}
+				else {
+					if (y > (world.getHeightBlocks()/2 - 24) &&y<maxHeight )
+						{
+							if (result.getBlock(x,y+1,z)==world.getWorldType().getOceanBlockId()) {
+								hasHitOcean = true;
+							}
+							if (x < 15)
+								if (result.getBlock(x+1,y,z)==world.getWorldType().getOceanBlockId()) {
+									hasHitOcean = true;
+								}
+							if (x > 0)
+								if (result.getBlock(x-1,y,z)==world.getWorldType().getOceanBlockId()){
+									hasHitOcean = true;
+								}
+							if (z < 15)
+								if (result.getBlock(x,y,z+1)==world.getWorldType().getOceanBlockId()){
+									hasHitOcean = true;
+								}
+							if (z > 0)
+								if (result.getBlock(x,y,z-1)==world.getWorldType().getOceanBlockId()){
+									hasHitOcean = true;
+								}
+							if(hasHitOcean)
+							{return;}
 						}
-						else {
-							result.setBlock(x, y, z, 0);
-						}
-					}
+					result.setBlock(x, y, z, 0);
 				}
 			}
-		}
 	}
 
 	private int getChunkHeight(World world,ChunkGeneratorResult result)
@@ -305,71 +343,6 @@ public class NoiseCaveGenerator extends LargeFeature
 			}
 		}
 		return interpolateNoiseCompound3D(noiseSampleMap,maxCaveHeightAdjusted,false);
-	}
-
-	protected float[][] sampleNoise2D(FastNoiseLite noise, int chunkX, int chunkZ, int offX, int offZ)
-	{
-		float[][] noiseSampleMap = new float[5][5];
-
-		for(int x = 0;x<5;x++)
-		{
-			int realX = x*4+chunkX*16;
-			for(int z = 0;z<5;z++)
-			{
-				int realZ = z*4+chunkZ*16;
-				noiseSampleMap[x][z] =noise.GetNoise(realX+offX,realZ+offZ);
-			}
-		}
-
-		return interpolateNoiseCompound2D(noiseSampleMap);
-	}
-
-	public static float[][] interpolateNoiseCompound2D(float[][] NoiseSamples) {
-		//Issues seem to come from the y coordinate just leave it hard coded I guess lol. Also freezing caused by too inefficient code
-		float[][] vals = new float[16][16];
-		int xzScale = 4;
-		float quarter = 0.25f;
-
-		for (int x = 0; x < xzScale; ++x) {
-			for (int z = 0; z < xzScale; ++z) {
-
-				float x0y0z0 = NoiseSamples[x][z];
-				float x0y0z1 = NoiseSamples[x][z + 1];
-				float x1y0z0 = NoiseSamples[x + 1][z];
-
-				// noise values of 4 corners at y=0
-				float noiseEndX1 = NoiseSamples[x + 1][z + 1];
-
-				float noiseStartZ = x0y0z0;
-				float noiseEndZ = x0y0z1;
-
-				// how much to increment X values, linear interpolation
-				float noiseStepX0 = (x1y0z0 - x0y0z0) * quarter;
-				float noiseStepX1 = (noiseEndX1 - x0y0z1) * quarter;
-
-				for (int subx = 0; subx < 4; subx++) {
-					int localX = subx + x * 4;
-
-					// how much to increment Z values, linear interpolation
-					float noiseStepZ = (noiseEndZ - noiseStartZ) * quarter;
-
-					// Y and X already interpolated, just need to interpolate final 4 Z block to get final noise value
-					float noiseValue = noiseStartZ;
-
-					for (int subz = 0; subz < 4; subz++) {
-						int localZ = subz + z * 4;
-
-						noiseValue += noiseStepZ;
-						vals[localX][localZ] = noiseValue;
-
-					}
-					noiseStartZ += noiseStepX0;
-					noiseEndZ += noiseStepX1;
-
-				}
-			}
-		}
-		return vals;
 	}
 
 	private float[][][] interpolateNoiseCompound3D(float[][][] NoiseSamples,int maxHeight,boolean shouldBlend)

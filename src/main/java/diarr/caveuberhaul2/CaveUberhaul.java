@@ -1,5 +1,6 @@
 package diarr.caveuberhaul2;
 
+import diarr.caveuberhaul2.gen.chunk.TempChunkData;
 import diarr.caveuberhaul2.particles.ParticleVoidFox;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ public class CaveUberhaul implements ModInitializer, RecipeEntrypoint, GameStart
 
 	@Override
 	public void beforeGameStart() {
+		new TempChunkData();
 		ParticleHelper.createParticle("voidFog", (world, x, y, z, motionX, motionY, motionZ, data) -> new ParticleVoidFox(world, x, y, z, motionX, motionY, motionZ));
 	}
 

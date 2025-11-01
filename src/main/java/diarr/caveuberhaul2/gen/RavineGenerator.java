@@ -1,8 +1,11 @@
 package diarr.caveuberhaul2.gen;
 
 import diarr.caveuberhaul2.FastNoiseLite;
+import diarr.caveuberhaul2.UberUtil;
+import diarr.caveuberhaul2.gen.chunk.TempChunkData;
 import net.minecraft.core.util.helper.MathHelper;
 import net.minecraft.core.world.World;
+import net.minecraft.core.world.chunk.ChunkCoordinate;
 import net.minecraft.core.world.generate.chunk.ChunkGeneratorResult;
 
 public class RavineGenerator extends NoiseCaveGenerator{
@@ -12,12 +15,13 @@ public class RavineGenerator extends NoiseCaveGenerator{
 	private float ravineFreqY = 0.0007f;
 	private float ravinePlacementFreq = 0.001f;
 	private float ravineStartingThreshold = .05f;
+	byte[][][] decoratorValues;
 	@Override
 	public void generate(World world, int baseChunkX, int baseChunkZ, ChunkGeneratorResult result) {
 		int seed = (int) world.getRandomSeed();
 		maxCaveHeight = world.getHeightBlocks()-1;
 
-		byte[][][] decoratorValues = new byte[16][world.getHeightBlocks()][16]; //0 = do Nothing; 1 = to be mined; 2 = marked for replacement by cave biome blocks
+		decoratorValues = TempChunkData.RetrieveData(world,new ChunkCoordinate(baseChunkX,baseChunkZ)); //0 = do Nothing; 1 = to be mined; 2 = marked for replacement by cave biome blocks
 
 		ravineCaveNoise.SetSeed(seed);
 		ravineCaveNoise.SetFrequency(ravineFreqXZ,ravineFreqY);
@@ -28,7 +32,7 @@ public class RavineGenerator extends NoiseCaveGenerator{
 		ravinePlacementNoise.SetNoiseType(FastNoiseLite.NoiseType.Value);
 
 		float[][][] NoiseMapRavineCompound = sampleTunnelNoiseCompound3D(ravineCaveNoise,baseChunkX,baseChunkZ, world.getHeightBlocks(), 128,0,128,ravineFreqXZ,ravineFreqY);
-		float[][] RavineActivatorNoise = sampleNoise2D(ravinePlacementNoise,baseChunkX,baseChunkZ,512,256);
+		float[][] RavineActivatorNoise = UberUtil.sampleNoise2D(ravinePlacementNoise,baseChunkX,baseChunkZ,512,256);
 		float ravineThres=ravineStartingThreshold;
 		for (int y = maxCaveHeight; y > 0; y--) {
 
@@ -91,18 +95,24 @@ public class RavineGenerator extends NoiseCaveGenerator{
 					boolean generateRavines = ravineValue<ravineThres-ravinePlacementValue;
 					boolean generateRavinesWalls = ravineValue<ravineThres+wallThickness-ravinePlacementValue;
 
-					if(generateRavinesWalls)
+					if(generateRavinesWalls && decoratorValues[x][y][z] != 1&&!generateRavines)
 					{
 						decoratorValues[x][y][z] = 2;
 					}
 					if (generateRavines)
 					{
 						decoratorValues[x][y][z] = 1;
+						int blockId = result.getBlock(x,y,z);
+						digBlocks(world,decoratorValues,maxCaveHeight,x,y,z,blockId,result);
 					}
-
+					if(decoratorValues[x][y][z] == 1&&y<254&&y>5&&decoratorValues[x][y+1][z] == 2)
+					{
+						decoratorValues[x][y+1][z] = 3;
+						//result.setBlock(x, y, z, 820);
+					}
 				}
 			}
 		}
-		digBlocks(decoratorValues,maxCaveHeight,result);
+
 	}
 }
